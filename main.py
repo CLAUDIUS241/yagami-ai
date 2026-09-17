@@ -108,8 +108,9 @@ else:
             try:
                 # Utilisation du client officiel Hugging Face (Ultra stable)
                 client = InferenceClient(
-                    model="Qwen/Qwen2.5-7B-Instruct",
-                    token=st.secrets["HF_TOKEN"]
+                    model="HuggingFaceH4/zephyr-7b-beta",
+                    token=st.secrets["HF_TOKEN"],
+                    provider="hf-inference"
                 )
                 
                 # Création de la réponse structurée en mode conversation
