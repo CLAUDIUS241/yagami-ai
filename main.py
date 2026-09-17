@@ -1,17 +1,16 @@
 import streamlit as st
-import requests
+from huggingface_hub import InferenceClient
 
-# 1. Configuration de la page
+# 1. Configuration de la page et du look ChatGPT/Gemini
 st.set_page_config(
     page_title="Yagami AI", 
     page_icon="🚀", 
     layout="centered"
 )
 
-# Ton mot de passe secret pour les clients
+# Ton mot de passe secret pour bloquer l'accès
 MOT_DE_PASSE_SECRET = "Yagami241"
 
-# Vérification de la session
 if "authentifie" not in st.session_state:
     st.session_state.authentifie = False
 
@@ -27,16 +26,16 @@ if not st.session_state.authentifie:
             st.session_state.authentifie = True
             st.rerun()
         else:
-            st.error("Code d'accès incorrect. Contactez le propriétaire pour acheter un accès.")
+            st.error("Code d'accès incorrect. Contactez le propriétaire pour obtenir votre code.")
             
     st.markdown("""
         <div style='text-align: center; margin-top: 5vh; padding: 15px; background-color: #1e1f20; border-radius: 8px;'>
             <p style='margin: 0; color: #f0f4f9;'><b>Comment obtenir un code ?</b></p>
-            <p style='margin: 5px 0 0 0; color: #8e9196; font-size: 0.9rem;'>Envoyez votre paiement par Mobile Money puis contactez le support WhatsApp.</p>
+            <p style='margin: 5px 0 0 0; color: #8e9196; font-size: 0.9rem;'>Envoyez votre paiement par Mobile Money (Airtel/Moov) puis contactez le support.</p>
         </div>
     """, unsafe_allow_html=True)
 
-# --- INTERFACE DE CHAT DU QUOTIDIEN (SI AUTHENTIFIÉ) ---
+# --- INTERFACE DE CHAT (SI DÉBLOQUÉ) ---
 else:
     st.markdown("""
         <style>
@@ -55,14 +54,14 @@ else:
 
     if len(st.session_state.messages) == 0:
         st.markdown("<h1 style='text-align: center; margin-top: 5vh; font-size: 3rem; color: #f0f4f9;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions du quotidien ! Je suis prêt.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions du quotidien ! Je suis opérationnel.</p>", unsafe_allow_html=True)
 
-    # Affichage de la discussion
+    # Affichage de l'historique
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Zone de saisie
+    # Zone de saisie en bas
     if prompt := st.chat_input("Saisissez un message ici..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -73,34 +72,27 @@ else:
             placeholder.markdown("*Yagami AI réfléchit...*")
             
             try:
-                # Utilisation d'un format de requête simplifié et universel
-                API_URL = "https://huggingface.co"
-                headers = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}"}
+                # Utilisation du client officiel Hugging Face (Ultra stable)
+                client = InferenceClient(
+                    model="Qwen/Qwen2.5-7B-Instruct",
+                    token=st.secrets["HF_TOKEN"]
+                )
                 
-                # Envoi simple du texte sans balises complexes
-                payload = {
-                    "inputs": prompt,
-                    "parameters": {"max_new_tokens": 500}
-                }
+                # Création de la réponse structurée en mode conversation
+                reponse_complete = client.chat_completion(
+                    messages=[
+                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=600
+                )
                 
-                response = requests.post(API_URL, headers=headers, json=payload)
-                data = response.json()
+                reponse_ia = reponse_complete.choices[0].message.content
                 
-                # Extraction sécurisée du texte retourné
-                if isinstance(data, list) and len(data) > 0 and "generated_text" in data[0]:
-                    reponse_ia = data[0]["generated_text"].strip()
-                elif isinstance(data, dict) and "generated_text" in data:
-                    reponse_ia = data["generated_text"].strip()
-                else:
-                    reponse_ia = "Mon système est surchargé. Réessaie ton message dans un instant !"
-                
-                # Éviter que l'IA ne répète la question de l'utilisateur
-                if reponse_ia.startswith(prompt):
-                    reponse_ia = reponse_ia[len(prompt):].strip()
-                    
             except Exception as e:
-                reponse_ia = "Erreur de connexion avec le serveur d'IA. Réessaye."
+                reponse_ia = "Désolé, le serveur d'IA met du temps à répondre. Réessaye ton message !"
 
-            # Affichage de la réponse à l'écran
+            # Affichage de la réponse finale
             placeholder.markdown(reponse_ia)
             st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
+
