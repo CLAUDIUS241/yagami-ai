@@ -108,7 +108,7 @@ else:
             try:
                 # Utilisation du client officiel Hugging Face (Ultra stable)
                 client = InferenceClient(
-                    model="Qwen/Qwen2.5-7B-Instruct",
+                    model="meta-llama/Llama-3.1-8B-Instruct",
                     token=st.secrets["HF_TOKEN"],
                     provider="auto"
                 )
