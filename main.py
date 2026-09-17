@@ -90,8 +90,7 @@ else:
                 reponse_ia = reponse_complete.choices[0].message.content
                 
             except Exception as e:
-                reponse_ia = "Désolé, le serveur d'IA met du temps à répondre. Réessaye ton message !"
-
+    reponse_ia = f"Erreur réelle : {e}"
             # Affichage de la réponse finale
             placeholder.markdown(reponse_ia)
             st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
