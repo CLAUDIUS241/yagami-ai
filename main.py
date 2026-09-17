@@ -1,134 +1,186 @@
 import streamlit as st
+import io
+import base64
+import time
 from huggingface_hub import InferenceClient
 
 # 1. Configuration de la page et du look ChatGPT/Gemini
 st.set_page_config(
-    page_title="Yagami AI", 
-    page_icon="🚀", 
+    page_title="Yagami AI",
+    page_icon="🚀",
     layout="centered"
 )
 
-# Ton mot de passe secret pour bloquer l'accès
-MOT_DE_PASSE_SECRET = "Yagami241"
+st.markdown("""
+    <style>
+        #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+        .block-container {padding-top: 2rem; padding-bottom: 7rem;}
+        div[data-testid="stVerticalBlock"] > div:has(div.stChatInput) {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background-color: #131314; padding: 1.5rem 0; z-index: 99;
+        }
+        .stChatInput {max-width: 730px; margin: 0 auto;}
 
-if "authentifie" not in st.session_state:
-    st.session_state.authentifie = False
+        /* --- Animation d'apparition fluide des messages --- */
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        div[data-testid="stChatMessage"] {
+            animation: fadeSlideIn 0.3s ease-out;
+        }
 
-# --- ÉCRAN D'ACCUEIL VERROUILLÉ ---
-if not st.session_state.authentifie:
-    st.markdown("<h1 style='text-align: center; margin-top: 10vh;'>🔒 Yagami AI Premium</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #8e9196;'>Entrez votre code d'accès pour débloquer l'IA.</p>", unsafe_allow_html=True)
-    
-    code_entre = st.text_input("Code d'accès :", type="password")
-    
-    if st.button("Débloquer l'accès ➔"):
-        if code_entre == MOT_DE_PASSE_SECRET:
-            st.session_state.authentifie = True
-            st.rerun()
+        /* --- IA à gauche --- */
+        div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) {
+            flex-direction: row;
+        }
+        div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) div[data-testid="stChatMessageContent"] {
+            text-align: left;
+            background-color: #1e1f20;
+            border-radius: 18px 18px 18px 4px;
+            padding: 12px 16px;
+            max-width: 80%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* --- Utilisateur à droite --- */
+        div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) {
+            flex-direction: row-reverse;
+        }
+        div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) div[data-testid="stChatMessageContent"] {
+            text-align: right;
+            background-color: #2b3a55;
+            border-radius: 18px 18px 4px 18px;
+            padding: 12px 16px;
+            max-width: 80%;
+            margin-left: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* --- Indicateur "en train d'écrire" façon Gemini --- */
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 4px 0;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background-color: #8e9196;
+            border-radius: 50%;
+            animation: bounce 1.3s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        img { border-radius: 14px; }
+    </style>
+""", unsafe_allow_html=True)
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if len(st.session_state.messages) == 0:
+    st.markdown("<h1 style='text-align: center; margin-top: 5vh; font-size: 3rem; color: #f0f4f9;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions, ou demande-moi de générer une image !</p>", unsafe_allow_html=True)
+
+# --- Affichage de l'historique ---
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        if message.get("type") == "image":
+            image_bytes = base64.b64decode(message["content"])
+            st.image(image_bytes, use_container_width=True)
+            if message.get("caption"):
+                st.caption(message["caption"])
         else:
-            st.error("Code d'accès incorrect. Contactez le propriétaire pour obtenir votre code.")
-            
-        st.markdown("""
-        <div style='text-align: center; margin-top: 5vh; padding: 15px; background-color: #1e1f20; border-radius: 8px; border: 1px solid #00c853;'>
-            <p style='margin: 0; color: #f0f4f9; font-size: 1.1rem;'><b>🎁 ACCÈS 100% GRATUIT OFFERT</b></p>
-            <p style='margin: 5px 0 0 0; color: #00c853; font-size: 1.3rem; font-weight: bold;'>Code d'accès : Yagami241</p>
-            <p style='margin: 5px 0 0 0; color: #8e9196; font-size: 0.85rem;'>Entrez ce code ci-dessus pour débloquer la puissance de Yagami AI !</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-
-# --- INTERFACE DE CHAT (SI DÉBLOQUÉ) ---
-else:
-    st.markdown("""
-        <style>
-            #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
-            .block-container {padding-top: 2rem; padding-bottom: 7rem;}
-            div[data-testid="stVerticalBlock"] > div:has(div.stChatInput) {
-                position: fixed; bottom: 0; left: 0; right: 0;
-                background-color: #131314; padding: 1.5rem 0; z-index: 99;
-            }
-            .stChatInput {max-width: 730px; margin: 0 auto;}
-
-            /* --- Animation d'apparition fluide des messages --- */
-            @keyframes fadeSlideIn {
-                from { opacity: 0; transform: translateY(8px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            div[data-testid="stChatMessage"] {
-                animation: fadeSlideIn 0.25s ease-out;
-            }
-
-            /* --- IA à gauche (par défaut) --- */
-            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) {
-                flex-direction: row;
-            }
-            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) div[data-testid="stChatMessageContent"] {
-                text-align: left;
-                background-color: #1e1f20;
-                border-radius: 18px 18px 18px 4px;
-                padding: 10px 15px;
-                max-width: 80%;
-            }
-
-            /* --- Utilisateur à droite --- */
-            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) {
-                flex-direction: row-reverse;
-            }
-            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) div[data-testid="stChatMessageContent"] {
-                text-align: right;
-                background-color: #2b3a55;
-                border-radius: 18px 18px 4px 18px;
-                padding: 10px 15px;
-                max-width: 80%;
-                margin-left: auto;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    if len(st.session_state.messages) == 0:
-        st.markdown("<h1 style='text-align: center; margin-top: 5vh; font-size: 3rem; color: #f0f4f9;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions du quotidien ! Je suis opérationnel.</p>", unsafe_allow_html=True)
-
-    # Affichage de l'historique
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Zone de saisie en bas
-    if prompt := st.chat_input("Saisissez un message ici..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# --- Détection d'une demande de génération d'image ---
+MOTS_CLES_IMAGE = [
+    "génère une image", "genere une image", "génère-moi une image", "genere moi une image",
+    "dessine", "crée une image", "cree une image", "créer une image", "creer une image",
+    "fais une image", "fait moi une image", "fais moi une image", "image de",
+    "photo de", "génère la photo", "peux tu dessiner", "peux-tu dessiner", "illustre"
+]
 
-        with st.chat_message("assistant"):
-            placeholder = st.empty()
-            placeholder.markdown("*Yagami AI réfléchit...*")
-            
+def est_demande_image(texte):
+    texte_lower = texte.lower()
+    return any(mot in texte_lower for mot in MOTS_CLES_IMAGE)
+
+# --- Zone de saisie en bas ---
+if prompt := st.chat_input("Écris un message ou décris une image à générer..."):
+    st.session_state.messages.append({"role": "user", "content": prompt, "type": "text"})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        placeholder.markdown(
+            "<div class='typing-indicator'><span></span><span></span><span></span></div>",
+            unsafe_allow_html=True
+        )
+
+        if est_demande_image(prompt):
+            # --- GÉNÉRATION D'IMAGE ---
             try:
-                # Utilisation du client officiel Hugging Face (Ultra stable)
+                client_img = InferenceClient(token=st.secrets["HF_TOKEN"], provider="auto")
+                image = client_img.text_to_image(
+                    prompt,
+                    model="black-forest-labs/FLUX.1-schnell"
+                )
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                img_b64 = base64.b64encode(buffer.getvalue()).decode()
+
+                placeholder.empty()
+                st.image(buffer.getvalue(), use_container_width=True)
+                st.caption(f"🎨 {prompt}")
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": img_b64,
+                    "type": "image",
+                    "caption": prompt
+                })
+            except Exception as e:
+                erreur_msg = f"Désolé, je n'ai pas pu générer l'image. Erreur réelle : {e}"
+                placeholder.markdown(erreur_msg)
+                st.session_state.messages.append({"role": "assistant", "content": erreur_msg, "type": "text"})
+
+        else:
+            # --- RÉPONSE TEXTE ---
+            try:
                 client = InferenceClient(
                     model="meta-llama/Llama-3.1-8B-Instruct",
                     token=st.secrets["HF_TOKEN"],
                     provider="auto"
                 )
-                
-                # Création de la réponse structurée en mode conversation
+
                 reponse_complete = client.chat_completion(
                     messages=[
-                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Si un utilisateur te demande qui t'a créé, reponds obligatoirement que tu as été créé par Yagami AI Corp. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français et en anglais."},
+                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=600
                 )
-                
+
                 reponse_ia = reponse_complete.choices[0].message.content
-                
+
             except Exception as e:
                 reponse_ia = f"Erreur réelle : {e}"
 
-            # Affichage de la réponse finale
+            # Effet d'écriture progressive façon Gemini
+            affichage = ""
+            mots = reponse_ia.split(" ")
+            for i, mot in enumerate(mots):
+                affichage += mot + " "
+                if i % 2 == 0:
+                    placeholder.markdown(affichage + "▌")
+                    time.sleep(0.02)
             placeholder.markdown(reponse_ia)
-            st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
+
+            st.session_state.messages.append({"role": "assistant", "content": reponse_ia, "type": "text"})
