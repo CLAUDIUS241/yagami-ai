@@ -71,7 +71,7 @@ else:
             placeholder = st.empty()
             placeholder.markdown("*Yagami AI réfléchit...*")
             
-            try:
+                        try:
                 # Utilisation du client officiel Hugging Face (Ultra stable)
                 client = InferenceClient(
                     model="Qwen/Qwen2.5-7B-Instruct",
@@ -90,8 +90,4 @@ else:
                 reponse_ia = reponse_complete.choices[0].message.content
                 
             except Exception as e:
-    reponse_ia = f"Erreur réelle : {e}"
-            # Affichage de la réponse finale
-            placeholder.markdown(reponse_ia)
-            st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
-
+                reponse_ia = f"Erreur réelle : {e}"
