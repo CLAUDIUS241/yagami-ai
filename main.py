@@ -81,6 +81,31 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- CONNEXION GOOGLE ---
+# Nécessite : Authlib dans requirements.txt + un bloc [auth] et [auth.google]
+# dans tes secrets Streamlit (voir les étapes fournies à côté du code).
+if not st.user.is_logged_in:
+    st.markdown("<h1 style='text-align: center; margin-top: 15vh; font-size: 3rem;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #8e9196;'>Connecte-toi avec Google pour commencer à discuter.</p>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🔐 Se connecter avec Google", use_container_width=True):
+            st.login("google")
+    st.stop()
+
+# --- BARRE LATÉRALE : profil + nouvelle conversation ---
+with st.sidebar:
+    if st.user.get("picture"):
+        st.image(st.user.picture, width=60)
+    st.markdown(f"**{st.user.get('name', 'Utilisateur')}**")
+    st.caption(st.user.get("email", ""))
+    st.divider()
+    if st.button("🆕 Nouvelle conversation", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+    if st.button("🚪 Se déconnecter", use_container_width=True):
+        st.logout()
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
