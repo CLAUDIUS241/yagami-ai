@@ -28,12 +28,14 @@ if not st.session_state.authentifie:
         else:
             st.error("Code d'accès incorrect. Contactez le propriétaire pour obtenir votre code.")
             
-    st.markdown("""
-        <div style='text-align: center; margin-top: 5vh; padding: 15px; background-color: #1e1f20; border-radius: 8px;'>
-            <p style='margin: 0; color: #f0f4f9;'><b>Comment obtenir un code ?</b></p>
-            <p style='margin: 5px 0 0 0; color: #8e9196; font-size: 0.9rem;'>Envoyez votre paiement par Mobile Money (Airtel/Moov) puis contactez le support.</p>
+        st.markdown("""
+        <div style='text-align: center; margin-top: 5vh; padding: 15px; background-color: #1e1f20; border-radius: 8px; border: 1px solid #00c853;'>
+            <p style='margin: 0; color: #f0f4f9; font-size: 1.1rem;'><b>🎁 ACCÈS 100% GRATUIT OFFERT</b></p>
+            <p style='margin: 5px 0 0 0; color: #00c853; font-size: 1.3rem; font-weight: bold;'>Code d'accès : Yagami241</p>
+            <p style='margin: 5px 0 0 0; color: #8e9196; font-size: 0.85rem;'>Entrez ce code ci-dessus pour débloquer la puissance de Yagami AI !</p>
         </div>
     """, unsafe_allow_html=True)
+
 
 # --- INTERFACE DE CHAT (SI DÉBLOQUÉ) ---
 else:
