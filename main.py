@@ -46,6 +46,40 @@ else:
                 background-color: #131314; padding: 1.5rem 0; z-index: 99;
             }
             .stChatInput {max-width: 730px; margin: 0 auto;}
+
+            /* --- Animation d'apparition fluide des messages --- */
+            @keyframes fadeSlideIn {
+                from { opacity: 0; transform: translateY(8px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            div[data-testid="stChatMessage"] {
+                animation: fadeSlideIn 0.25s ease-out;
+            }
+
+            /* --- IA à gauche (par défaut) --- */
+            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) {
+                flex-direction: row;
+            }
+            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssistant"]) div[data-testid="stChatMessageContent"] {
+                text-align: left;
+                background-color: #1e1f20;
+                border-radius: 18px 18px 18px 4px;
+                padding: 10px 15px;
+                max-width: 80%;
+            }
+
+            /* --- Utilisateur à droite --- */
+            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) {
+                flex-direction: row-reverse;
+            }
+            div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) div[data-testid="stChatMessageContent"] {
+                text-align: right;
+                background-color: #2b3a55;
+                border-radius: 18px 18px 4px 18px;
+                padding: 10px 15px;
+                max-width: 80%;
+                margin-left: auto;
+            }
         </style>
     """, unsafe_allow_html=True)
 
@@ -71,7 +105,7 @@ else:
             placeholder = st.empty()
             placeholder.markdown("*Yagami AI réfléchit...*")
             
-                        try:
+            try:
                 # Utilisation du client officiel Hugging Face (Ultra stable)
                 client = InferenceClient(
                     model="Qwen/Qwen2.5-7B-Instruct",
@@ -91,3 +125,7 @@ else:
                 
             except Exception as e:
                 reponse_ia = f"Erreur réelle : {e}"
+
+            # Affichage de la réponse finale
+            placeholder.markdown(reponse_ia)
+            st.session_state.messages.append({"role": "assistant", "content": reponse_ia})
