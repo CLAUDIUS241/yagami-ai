@@ -116,7 +116,7 @@ else:
                 # Création de la réponse structurée en mode conversation
                 reponse_complete = client.chat_completion(
                     messages=[
-                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français."},
+                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Si un utilisateur te demande qui t'a créé, reponds obligatoirement que tu as été créé par Yagami AI Corp. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français et en anglais."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=600
