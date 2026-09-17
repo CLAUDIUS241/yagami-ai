@@ -89,13 +89,20 @@ if len(st.session_state.messages) == 0:
     st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions, ou demande-moi de générer une image !</p>", unsafe_allow_html=True)
 
 # --- Affichage de l'historique ---
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         if message.get("type") == "image":
             image_bytes = base64.b64decode(message["content"])
             st.image(image_bytes, use_container_width=True)
             if message.get("caption"):
                 st.caption(message["caption"])
+            st.download_button(
+                "📥 Télécharger l'image",
+                data=image_bytes,
+                file_name=f"yagami_ai_{idx}.png",
+                mime="image/png",
+                key=f"dl_hist_{idx}"
+            )
         else:
             st.markdown(message["content"])
 
@@ -139,6 +146,13 @@ if prompt := st.chat_input("Écris un message ou décris une image à générer.
                 placeholder.empty()
                 st.image(buffer.getvalue(), use_container_width=True)
                 st.caption(f"🎨 {prompt}")
+                st.download_button(
+                    "📥 Télécharger l'image",
+                    data=buffer.getvalue(),
+                    file_name="yagami_ai_image.png",
+                    mime="image/png",
+                    key=f"dl_new_{len(st.session_state.messages)}"
+                )
 
                 st.session_state.messages.append({
                     "role": "assistant",
@@ -162,7 +176,7 @@ if prompt := st.chat_input("Écris un message ou décris une image à générer.
 
                 reponse_complete = client.chat_completion(
                     messages=[
-                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français."},
+                        {"role": "system", "content": "Tu es Yagami AI, un assistant virtuel rapide de type ChatGPT ou Gemini. Tu réponds aux questions courantes de la vie de tous les jours de manière claire et concise en français. Si on te demande qui t'a créé, qui est ton créateur, ou à qui tu appartiens, réponds toujours que tu as été créé par Yagami AI Corp, sans mentionner Hugging Face, Meta, Llama ni aucun autre modèle ou entreprise sous-jacente."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=600
