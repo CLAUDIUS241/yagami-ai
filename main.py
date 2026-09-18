@@ -2,6 +2,7 @@ import streamlit as st
 import io
 import base64
 import time
+import uuid
 from huggingface_hub import InferenceClient
 
 # 1. Configuration de la page et du look ChatGPT/Gemini
@@ -78,12 +79,24 @@ st.markdown("""
         }
 
         img { border-radius: 14px; }
+
+        /* --- Bouton toggle tableau de bord --- */
+        .toggle-dashboard-btn button {
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+        }
+
+        /* --- Historique dans le tableau de bord --- */
+        .conv-item-active {
+            background-color: #2b3a55 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # --- CONNEXION GOOGLE ---
 # Nécessite : Authlib dans requirements.txt + un bloc [auth] et [auth.google]
-# dans tes secrets Streamlit (voir les étapes fournies à côté du code).
+# dans tes secrets Streamlit.
 if not st.user.is_logged_in:
     st.markdown("<h1 style='text-align: center; margin-top: 15vh; font-size: 3rem;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #8e9196;'>Connecte-toi avec Google pour commencer à discuter.</p>", unsafe_allow_html=True)
@@ -93,28 +106,71 @@ if not st.user.is_logged_in:
             st.login("google")
     st.stop()
 
-# --- BARRE LATÉRALE : profil + nouvelle conversation ---
-with st.sidebar:
-    if st.user.get("picture"):
-        st.image(st.user.picture, width=60)
-    st.markdown(f"**{st.user.get('name', 'Utilisateur')}**")
-    st.caption(st.user.get("email", ""))
-    st.divider()
-    if st.button("🆕 Nouvelle conversation", use_container_width=True):
-        st.session_state.messages = []
+# --- INITIALISATION DES CONVERSATIONS ---
+if "conversations" not in st.session_state:
+    premier_id = str(uuid.uuid4())
+    st.session_state.conversations = {
+        premier_id: {"titre": "Nouvelle conversation", "messages": []}
+    }
+    st.session_state.current_conv_id = premier_id
+
+if "show_dashboard" not in st.session_state:
+    st.session_state.show_dashboard = True
+
+# Cache le tableau de bord si désactivé
+if not st.session_state.show_dashboard:
+    st.markdown("<style>section[data-testid='stSidebar'] {display: none;}</style>", unsafe_allow_html=True)
+
+# --- BOUTON POUR AFFICHER/MASQUER LE TABLEAU DE BORD ---
+col_toggle, col_espace = st.columns([1, 9])
+with col_toggle:
+    st.markdown('<div class="toggle-dashboard-btn">', unsafe_allow_html=True)
+    if st.button("☰"):
+        st.session_state.show_dashboard = not st.session_state.show_dashboard
         st.rerun()
-    if st.button("🚪 Se déconnecter", use_container_width=True):
-        st.logout()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# --- TABLEAU DE BORD (BARRE LATÉRALE) ---
+if st.session_state.show_dashboard:
+    with st.sidebar:
+        if st.user.get("picture"):
+            st.image(st.user.picture, width=60)
+        st.markdown(f"**{st.user.get('name', 'Utilisateur')}**")
+        st.caption(st.user.get("email", ""))
+        st.divider()
 
-if len(st.session_state.messages) == 0:
+        if st.button("🆕 Nouvelle conversation", use_container_width=True):
+            nouvel_id = str(uuid.uuid4())
+            st.session_state.conversations[nouvel_id] = {"titre": "Nouvelle conversation", "messages": []}
+            st.session_state.current_conv_id = nouvel_id
+            st.rerun()
+
+        st.divider()
+        st.markdown("**Historique**")
+
+        # Affiche les conversations, la plus récente en premier
+        for conv_id in reversed(list(st.session_state.conversations.keys())):
+            conv = st.session_state.conversations[conv_id]
+            est_active = (conv_id == st.session_state.current_conv_id)
+            label = ("🟢 " if est_active else "") + conv["titre"]
+            if st.button(label, key=f"conv_{conv_id}", use_container_width=True):
+                st.session_state.current_conv_id = conv_id
+                st.rerun()
+
+        st.divider()
+        if st.button("🚪 Se déconnecter", use_container_width=True):
+            st.logout()
+
+# --- RÉCUPÈRE LA CONVERSATION ACTIVE ---
+conv_active = st.session_state.conversations[st.session_state.current_conv_id]
+messages = conv_active["messages"]
+
+if len(messages) == 0:
     st.markdown("<h1 style='text-align: center; margin-top: 5vh; font-size: 3rem; color: #f0f4f9;'>🚀 Yagami AI</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #8e9196;'>Pose-moi tes questions, ou demande-moi de générer une image !</p>", unsafe_allow_html=True)
 
-# --- Affichage de l'historique ---
-for idx, message in enumerate(st.session_state.messages):
+# --- Affichage de l'historique de la conversation active ---
+for idx, message in enumerate(messages):
     with st.chat_message(message["role"]):
         if message.get("type") == "image":
             image_bytes = base64.b64decode(message["content"])
@@ -126,7 +182,7 @@ for idx, message in enumerate(st.session_state.messages):
                 data=image_bytes,
                 file_name=f"yagami_ai_{idx}.png",
                 mime="image/png",
-                key=f"dl_hist_{idx}"
+                key=f"dl_hist_{st.session_state.current_conv_id}_{idx}"
             )
         else:
             st.markdown(message["content"])
@@ -145,7 +201,11 @@ def est_demande_image(texte):
 
 # --- Zone de saisie en bas ---
 if prompt := st.chat_input("Écris un message ou décris une image à générer..."):
-    st.session_state.messages.append({"role": "user", "content": prompt, "type": "text"})
+    # Met à jour le titre de la conversation si c'est le premier message
+    if len(messages) == 0:
+        conv_active["titre"] = prompt[:30] + ("..." if len(prompt) > 30 else "")
+
+    messages.append({"role": "user", "content": prompt, "type": "text"})
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -176,10 +236,10 @@ if prompt := st.chat_input("Écris un message ou décris une image à générer.
                     data=buffer.getvalue(),
                     file_name="yagami_ai_image.png",
                     mime="image/png",
-                    key=f"dl_new_{len(st.session_state.messages)}"
+                    key=f"dl_new_{len(messages)}"
                 )
 
-                st.session_state.messages.append({
+                messages.append({
                     "role": "assistant",
                     "content": img_b64,
                     "type": "image",
@@ -188,7 +248,7 @@ if prompt := st.chat_input("Écris un message ou décris une image à générer.
             except Exception as e:
                 erreur_msg = f"Désolé, je n'ai pas pu générer l'image. Erreur réelle : {e}"
                 placeholder.markdown(erreur_msg)
-                st.session_state.messages.append({"role": "assistant", "content": erreur_msg, "type": "text"})
+                messages.append({"role": "assistant", "content": erreur_msg, "type": "text"})
 
         else:
             # --- RÉPONSE TEXTE ---
@@ -222,4 +282,4 @@ if prompt := st.chat_input("Écris un message ou décris une image à générer.
                     time.sleep(0.02)
             placeholder.markdown(reponse_ia)
 
-            st.session_state.messages.append({"role": "assistant", "content": reponse_ia, "type": "text"})
+            messages.append({"role": "assistant", "content": reponse_ia, "type": "text"})
